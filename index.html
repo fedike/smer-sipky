@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Šípky v tabuľke</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  background:#eef2f7;color:#1e293b;overflow:hidden;
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;overscroll-behavior:none;
+}
+button{font-family:inherit;cursor:pointer;touch-action:manipulation}
+button:focus:not(:focus-visible){outline:none}
+button:focus-visible{outline:3px solid #2563eb}
+
+#fsbtn{
+  position:fixed;top:8px;right:8px;z-index:50;width:42px;height:42px;
+  font-size:20px;line-height:1;color:#475569;
+  border:2px solid #94a3b8;border-radius:10px;background:rgba(255,255,255,.75);opacity:.45;
+}
+#fsbtn:hover{opacity:1}
+
+.screen{position:fixed;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+
+/* ---------- úvodné nastavenia ---------- */
+#screen-setup{align-items:center;justify-content:center;gap:4vh;padding:24px}
+#screen-setup h1{font-size:clamp(28px,6.5vh,60px);font-weight:800;letter-spacing:2px;text-align:center}
+.setup-group{display:flex;flex-direction:column;align-items:center}
+.setup-label{font-size:clamp(16px,3.2vh,30px);font-weight:700;color:#475569;letter-spacing:1px;margin-bottom:1.4vh;text-align:center}
+.btnrow{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.choice{
+  min-width:clamp(54px,11vh,104px);height:clamp(54px,11vh,104px);padding:0 20px;
+  font-size:clamp(22px,5vh,48px);font-weight:800;color:#334155;
+  background:#fff;border:4px solid #334155;border-radius:16px;
+}
+.choice.wide{font-size:clamp(16px,3.6vh,34px)}
+.choice.selected{background:#2563eb;border-color:#1e40af;color:#fff}
+.bigbtn{
+  padding:clamp(10px,2.4vh,24px) clamp(30px,5vw,90px);
+  font-size:clamp(24px,5.5vh,54px);font-weight:800;letter-spacing:1px;color:#fff;
+  background:#16a34a;border:4px solid #15803d;border-radius:18px;
+}
+.bigbtn.orange{background:#ea580c;border-color:#c2410c}
+.bigbtn.blue{background:#2563eb;border-color:#1d4ed8}
+
+/* ---------- herná obrazovka ---------- */
+#screen-game{padding:6px 12px 10px}
+.topbar{
+  display:flex;justify-content:space-between;padding:2px 46px 2px 6px;
+  font-size:clamp(13px,2.4vh,24px);font-weight:600;color:#64748b;letter-spacing:1px;
+}
+#feedback{
+  height:clamp(56px,15vh,150px);display:flex;align-items:center;justify-content:center;gap:2vw;
+}
+#fb-emoji{font-size:clamp(40px,10vh,104px);line-height:1}
+#fb-emoji:empty{display:none}
+#fb-text{font-weight:800;line-height:1.1;text-align:center}
+.fb-instr #fb-text{font-size:clamp(15px,3.4vh,32px);color:#64748b;letter-spacing:1px}
+.fb-correct #fb-text{font-size:clamp(28px,7.2vh,76px);color:#16a34a}
+.fb-wrong #fb-text{font-size:clamp(28px,7.2vh,76px);color:#dc2626}
+#strip{display:flex;justify-content:center;gap:10px;padding:6px 0 10px}
+.sbox{
+  width:var(--sbw,92px);height:var(--sbh,92px);font-size:var(--sfont,50px);
+  display:flex;align-items:center;justify-content:center;
+  background:#ffecb8;border:4px solid #334155;border-radius:14px;font-weight:800;line-height:1;
+}
+#tablewrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+#table{
+  display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(4,1fr);gap:10px;
+  touch-action:none;
+}
+.cell{
+  display:flex;align-items:center;justify-content:center;
+  background:#fff;border:4px solid #334155;border-radius:14px;
+  font-weight:800;font-size:1em;line-height:1;touch-action:none;
+}
+.cell:active{background:#e2e8f0}
+.cell.mark-correct{background:#22c55e;border-color:#15803d;color:#fff}
+.cell.mark-wrong{background:#ef4444;border-color:#b91c1c;color:#fff}
+
+/* ---------- koniec série a vyhodnotenie ---------- */
+#screen-end,#screen-final{align-items:center;justify-content:center;gap:4vh;padding:24px;text-align:center}
+h2{font-size:clamp(32px,8vh,76px);font-weight:800;letter-spacing:2px}
+#screen-end .setup-label{margin-bottom:0}
+.stat{
+  display:flex;align-items:center;justify-content:space-between;gap:5vw;
+  width:min(88vw,900px);padding:1.6vh 3vw;
+  background:#fff;border:4px solid #334155;border-radius:16px;
+}
+.stat .lbl{font-size:clamp(16px,3.6vh,34px);font-weight:700;color:#334155;letter-spacing:1px;text-align:left}
+.stat .val{font-size:clamp(24px,5.5vh,52px);font-weight:800}
+.val.green{color:#16a34a}
+.val.red{color:#dc2626}
+</style>
+</head>
+<body>
+
+<button id="fsbtn" title="Celá obrazovka" aria-label="Celá obrazovka">⛶</button>
+
+<!-- ============ ÚVODNÉ NASTAVENIA ============ -->
+<section id="screen-setup" class="screen active">
+  <h1>ŠÍPKY V TABUĽKE</h1>
+  <div class="setup-group">
+    <div class="setup-label">POČET ŠÍPOK</div>
+    <div class="btnrow" id="arrowcount">
+      <button class="choice" data-v="2">2</button>
+      <button class="choice selected" data-v="3">3</button>
+      <button class="choice" data-v="4">4</button>
+      <button class="choice" data-v="5">5</button>
+      <button class="choice" data-v="6">6</button>
+    </div>
+  </div>
+  <div class="setup-group">
+    <div class="setup-label">ČO BUDE V TABUĽKE</div>
+    <div class="btnrow" id="mode">
+      <button class="choice wide selected" data-v="numbers">ČÍSLA 1–20</button>
+      <button class="choice wide" data-v="letters">PÍSMENÁ A–T</button>
+    </div>
+  </div>
+  <button id="startbtn" class="bigbtn">ZAČAŤ HRU</button>
+</section>
+
+<!-- ============ HRA ============ -->
+<section id="screen-game" class="screen">
+  <div class="topbar">
+    <span id="seria">SÉRIA 1</span>
+    <span id="uloha">ÚLOHA 1/5</span>
+  </div>
+  <div id="feedback" class="fb-instr"><span id="fb-emoji"></span><span id="fb-text"></span></div>
+  <div id="strip"></div>
+  <div id="tablewrap"><div id="table"></div></div>
+</section>
+
+<!-- ============ KONIEC SÉRIE ============ -->
+<section id="screen-end" class="screen">
+  <h2>SÉRIA DOKONČENÁ!</h2>
+  <div class="setup-label">HRAŤ ZNOVU?</div>
+  <div class="btnrow">
+    <button id="againbtn" class="bigbtn">HRAŤ ZNOVU</button>
+    <button id="endbtn" class="bigbtn orange">KONIEC</button>
+  </div>
+</section>
+
+<!-- ============ VYHODNOTENIE ============ -->
+<section id="screen-final" class="screen">
+  <h2>VYHODNOTENIE</h2>
+  <div class="stat"><span class="lbl">POČET DOKONČENÝCH SÉRIÍ</span><span class="val" id="st-series">0</span></div>
+  <div class="stat"><span class="lbl">SPRÁVNE POKUSY</span><span class="val green" id="st-correct">0</span></div>
+  <div class="stat"><span class="lbl">NESPRÁVNE POKUSY</span><span class="val red" id="st-wrong">0</span></div>
+  <button id="newgamebtn" class="bigbtn blue">NOVÁ HRA</button>
+</section>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const ROWS = 4, COLS = 5, TASKS_PER_SERIES = 5;
+const LOCK_MS = 4000;      // blokácia po správnej odpovedi
+const DBL_MS = 500;        // interval dvojitého ťuknutia
+const MOVE_PX = 14;        // tolerancia posunu prsta (viac = ťahanie, nie ťuknutie)
+const NUMS = Array.from({length:20}, (_,i)=>String(i+1));
+const LETS = "ABCDEFGHIJKLMNOPQRST".split("");
+const DIRS = {"←":[0,-1], "↑":[-1,0], "→":[0,1], "↓":[1,0]};
+const OPP = {"←":"→", "→":"←", "↑":"↓", "↓":"↑"}; // bez okamžitého návratu v ceste
+
+const settings = { arrows: 3, mode: "numbers" };
+let S = null;          // stav bežiacej hry
+let cellEls = [];
+let lastConfirmAt = 0; // proti dvojitému započítaniu (manuálny pár + natívne dblclick)
+
+/* ---------- generovanie zadaní ---------- */
+const rnd = n => Math.floor(Math.random()*n);
+const taskKey = t => t.start[0]+","+t.start[1]+":"+t.arrows.join("");
+
+function genTask(){
+  for(;;){
+    let r = rnd(ROWS), c = rnd(COLS);
+    const start = [r, c], arrows = [];
+    for(let i=0; i<settings.arrows; i++){
+      // v každom kroku len smery, ktoré z aktuálnej pozície vedú do tabuľky,
+      // okrem smeru opačného k predchádzajúcej šípke (→←, ←→, ↑↓, ↓↑)
+      const opts = Object.keys(DIRS).filter(k=>{
+        if(arrows.length && k === OPP[arrows[arrows.length-1]]) return false;
+        const nr = r + DIRS[k][0], nc = c + DIRS[k][1];
+        return nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS;
+      });
+      const k = opts[rnd(opts.length)];
+      r += DIRS[k][0]; c += DIRS[k][1];
+      arrows.push(k);
+    }
+    const t = { start, arrows, end:[r, c] };
+    if(!S.used.has(taskKey(t))) return t;
+  }
+}
+
+/* ---------- obrazovky ---------- */
+function showScreen(name){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  $("screen-"+name).classList.add("active");
+  if(name === "game") requestAnimationFrame(layout);
+}
+
+/* ---------- priebeh hry ---------- */
+function startGame(){
+  S = { series:1, taskNo:1, done:0, correct:0, wrong:0,
+        used:new Set(), task:null, locked:false, lastTap:null, downs:new Map() };
+  buildTable();
+  showScreen("game");
+  startSeries();
+}
+
+function startSeries(){
+  S.used = new Set();
+  S.taskNo = 1;
+  $("seria").textContent = "SÉRIA " + S.series;
+  nextTask();
+}
+
+function buildTable(){
+  const t = $("table");
+  t.innerHTML = ""; cellEls = [];
+  const chars = settings.mode === "letters" ? LETS : NUMS;
+  for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++){
+    const d = document.createElement("div");
+    d.className = "cell";
+    d.textContent = chars[r*COLS + c];
+    d.dataset.r = r; d.dataset.c = c;
+    t.appendChild(d); cellEls.push(d);
+  }
+}
+
+function nextTask(){
+  S.task = genTask();
+  S.used.add(taskKey(S.task));
+  renderStrip();
+  $("uloha").textContent = "ÚLOHA " + S.taskNo + "/" + TASKS_PER_SERIES;
+  clearMarks();
+  setInstruction();
+  layout();
+}
+
+function renderStrip(){
+  const strip = $("strip");
+  strip.innerHTML = "";
+  const chars = settings.mode === "letters" ? LETS : NUMS;
+  addBox(strip, chars[S.task.start[0]*COLS + S.task.start[1]]);
+  S.task.arrows.forEach(a=>addBox(strip, a));
+}
+
+function addBox(parent, txt){
+  const d = document.createElement("div");
+  d.className = "sbox"; d.textContent = txt;
+  parent.appendChild(d);
+}
+
+function clearMarks(){
+  cellEls.forEach(c=>c.classList.remove("mark-correct","mark-wrong"));
+}
+
+function setInstruction(){
+  $("feedback").className = "fb-instr";
+  $("fb-emoji").textContent = "";
+  $("fb-text").textContent = "SLEDUJ ŠÍPKY. NA CIEĽ ŤUKNI DVAKRÁT.";
+}
+
+function setFeedback(ok){
+  $("feedback").className = ok ? "fb-correct" : "fb-wrong";
+  $("fb-emoji").textContent = ok ? "😃" : "😢";
+  $("fb-text").textContent = ok ? "SPRÁVNE!" : "SKÚS ZNOVA.";
+}
+
+/* ---------- vyhodnotenie potvrdeného cieľa ---------- */
+function confirmCell(r, c){
+  if(!S || S.locked) return;
+  lastConfirmAt = performance.now();
+  const ok = (r === S.task.end[0] && c === S.task.end[1]);
+  clearMarks();
+  cellEls[r*COLS + c].classList.add(ok ? "mark-correct" : "mark-wrong");
+  if(ok){
+    S.correct++;
+    setFeedback(true);
+    S.locked = true; // 4 s bez ďalších odpovedí, zadanie aj tabuľka zostávajú viditeľné
+    setTimeout(()=>{
+      S.locked = false;
+      if(S.taskNo >= TASKS_PER_SERIES){ S.done++; showScreen("end"); }
+      else { S.taskNo++; nextTask(); }
+    }, LOCK_MS);
+  }else{
+    S.wrong++;
+    setFeedback(false); // rovnaké zadanie ostáva, opakovať možno neobmedzene
+  }
+}
+
+/* ---------- vstup: dvojité ťuknutie / dvojklik na to isté políčko ---------- */
+function handleTap(cell){
+  if(!S || S.locked) return;
+  const now = performance.now(), lt = S.lastTap;
+  if(lt && lt.cell === cell && now - lt.t <= DBL_MS){
+    S.lastTap = null;
+    confirmCell(+cell.dataset.r, +cell.dataset.c);
+  }else{
+    S.lastTap = { cell, t: now };
+  }
+}
+
+function endTap(d, x, y, cell){
+  if(!cell || cell !== d.cell) return;                 // dotyčné políčko sa zmenilo = ťahanie
+  if(Math.hypot(x - d.x, y - d.y) > MOVE_PX) return;   // veľký posun prsta = ťahanie
+  handleTap(d.cell);
+}
+
+const table = $("table");
+
+if(window.PointerEvent){
+  table.addEventListener("pointerdown", e=>{
+    if(e.pointerType === "mouse" && e.button !== 0) return;
+    const cell = e.target.closest(".cell");
+    if(!cell || !S || S.locked) return;
+    S.downs.set(e.pointerId, { x:e.clientX, y:e.clientY, cell });
+    e.preventDefault();
+  });
+  table.addEventListener("pointerup", e=>{
+    if(!S) return;
+    const d = S.downs.get(e.pointerId);
+    if(!d) return;
+    S.downs.delete(e.pointerId);
+    endTap(d, e.clientX, e.clientY, e.target.closest(".cell"));
+  });
+  table.addEventListener("pointercancel", e=>{ if(S) S.downs.delete(e.pointerId); });
+}else{
+  // záloha pre prehliadače bez Pointer Events
+  let lastTouch = 0;
+  table.addEventListener("touchstart", e=>{
+    const t = e.changedTouches[0], cell = e.target.closest(".cell");
+    if(cell && S && !S.locked) S.downs.set("t"+t.identifier, { x:t.clientX, y:t.clientY, cell });
+    e.preventDefault();
+  }, { passive:false });
+  table.addEventListener("touchend", e=>{
+    if(!S) return;
+    const t = e.changedTouches[0], d = S.downs.get("t"+t.identifier);
+    S.downs.delete("t"+t.identifier);
+    if(d){ endTap(d, t.clientX, t.clientY, d.cell); lastTouch = Date.now(); }
+  });
+  table.addEventListener("mousedown", e=>{
+    if(Date.now() - lastTouch < 800) return; // potlačenie emulovaných myšových udalostí po dotyku
+    const cell = e.target.closest(".cell");
+    if(cell && S && !S.locked) S.downs.set("m", { x:e.clientX, y:e.clientY, cell });
+  });
+  table.addEventListener("mouseup", e=>{
+    const d = S.downs.get("m");
+    S.downs.delete("m");
+    if(d) endTap(d, e.clientX, e.clientY, e.target.closest(".cell"));
+  });
+}
+
+// natívny dvojklik ako poistka (u myši môže prísť po manuálnom páre – strážené lastConfirmAt)
+table.addEventListener("dblclick", e=>{
+  e.preventDefault();
+  const cell = e.target.closest(".cell");
+  if(!cell || !S || S.locked) return;
+  if(performance.now() - lastConfirmAt < 150) return;
+  S.lastTap = null;
+  confirmCell(+cell.dataset.r, +cell.dataset.c);
+});
+
+// žiadne označovanie textu, kontextové menu ani priblíženie v hernej ploche
+document.addEventListener("contextmenu", e=>{
+  if(e.target.closest && (e.target.closest("#table") || e.target.closest("#strip"))) e.preventDefault();
+});
+document.addEventListener("gesturestart", e=>e.preventDefault());
+
+// klávesnica: Enter/Medzerník aktivujú tlačidlá aj v prehliadačoch, ktoré to neriešia
+document.addEventListener("keydown", e=>{
+  if((e.key === "Enter" || e.key === " ") && e.target instanceof HTMLButtonElement){
+    e.preventDefault(); e.target.click();
+  }
+});
+
+/* ---------- rozloženie podľa veľkosti obrazovky ---------- */
+function layout(){
+  if(!$("screen-game").classList.contains("active")) return;
+  // pásik: vždy celý v jednom riadku, aj pri 6 šípkach (7 políčok)
+  const strip = $("strip"), n = settings.arrows + 1, gap = 10;
+  const avail = strip.clientWidth - 12;
+  const maxBh = Math.min(window.innerHeight * 0.16, 130);
+  let bw = Math.min(Math.floor((avail - gap*(n-1)) / n), 150, Math.round(maxBh * 1.35));
+  bw = Math.max(bw, 30);
+  const bh = Math.min(Math.round(bw * 0.82), Math.round(maxBh));
+  strip.style.setProperty("--sbw", bw + "px");
+  strip.style.setProperty("--sbh", bh + "px");
+  strip.style.setProperty("--sfont", Math.round(Math.min(bw, bh) * 0.62) + "px");
+  // tabuľka: čo najväčšia, so zachovaním pomeru 5:4, vždy naraz bez posúvania
+  const wrap = $("tablewrap"), t = $("table");
+  const aw = wrap.clientWidth - 8, ah = wrap.clientHeight - 8;
+  let w = aw, h = aw * ROWS / COLS;
+  if(h > ah){ h = ah; w = ah * COLS / ROWS; }
+  t.style.width = Math.floor(w) + "px";
+  t.style.height = Math.floor(h) + "px";
+  const cell = t.querySelector(".cell");
+  if(cell){
+    const s = Math.min(cell.offsetWidth, cell.offsetHeight);
+    t.style.fontSize = Math.round(s * 0.52) + "px";
+  }
+}
+window.addEventListener("resize", layout);
+window.addEventListener("orientationchange", ()=>setTimeout(layout, 100));
+document.addEventListener("fullscreenchange", ()=>setTimeout(layout, 100));
+
+/* ---------- celá obrazovka ---------- */
+$("fsbtn").addEventListener("click", ()=>{
+  const d = document, el = d.documentElement;
+  if(d.fullscreenElement || d.webkitFullscreenElement){
+    (d.exitFullscreen || d.webkitExitFullscreen || function(){}).call(d);
+  }else{
+    const f = el.requestFullscreen || el.webkitRequestFullscreen;
+    if(f) f.call(el);
+  }
+});
+
+/* ---------- ovládanie tlačidiel ---------- */
+function wireGroup(id, apply){
+  const btns = [...document.querySelectorAll("#"+id+" .choice")];
+  btns.forEach(b=>b.addEventListener("click", ()=>{
+    apply(b.dataset.v);
+    btns.forEach(x=>x.classList.toggle("selected", x === b));
+  }));
+}
+wireGroup("arrowcount", v=>settings.arrows = +v);
+wireGroup("mode", v=>settings.mode = v);
+
+$("startbtn").addEventListener("click", startGame);
+
+$("againbtn").addEventListener("click", ()=>{
+  S.series++;          // štatistiky zostávajú, ide nová séria
+  showScreen("game");
+  startSeries();
+});
+
+$("endbtn").addEventListener("click", ()=>{
+  $("st-series").textContent = S.done;
+  $("st-correct").textContent = S.correct;
+  $("st-wrong").textContent = S.wrong;
+  showScreen("final");
+});
+
+$("newgamebtn").addEventListener("click", ()=>{
+  S = null;            // vynulovanie štatistík a návrat do nastavení
+  showScreen("setup");
+});
+</script>
+</body>
+</html>
